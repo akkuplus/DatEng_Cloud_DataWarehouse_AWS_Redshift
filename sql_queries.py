@@ -5,6 +5,7 @@ import configparser
 config = configparser.ConfigParser()
 config.read('dwh.cfg')  # See dwh_example.cfg for sections and elements
 
+
 # DROP TABLES
 
 staging_events_table_drop = "DROP TABLE IF EXISTS staging_events"
@@ -13,7 +14,8 @@ songplay_table_drop = "DROP TABLE IF EXISTS songplays"
 user_table_drop = "DROP TABLE IF EXISTS users"
 song_table_drop = "DROP TABLE IF EXISTS songs"
 artist_table_drop = "DROP TABLE IF EXISTS artists"
-time_table_drop = "DROP TABLE IF EXISTS time"
+time_table_drop = "DROP TABLE IF EXISTS times"
+
 
 # CREATE TABLES
 
@@ -34,24 +36,26 @@ staging_events_table_create = """CREATE TABLE staging_events (artist varchar,
                                                                 status int,
                                                                 ts timestamp,
                                                                 user_agent varchar,
-                                                                user_id int
-  )"""
+                                                                user_id varchar);"""
 
-staging_songs_table_create = """CREATE TABLE staging_songs (artist_id varchar NOT NULL PRIMARY KEY,
+
+staging_songs_table_create = """CREATE TABLE staging_songs (num_songs int, 
+                                                            artist_id varchar NOT NULL,
                                                             artist_latitude decimal,
-                                                            artist_location varchar,
                                                             artist_longitude decimal,
+                                                            artist_location varchar,                                                            
                                                             artist_name varchar,
-                                                            duration decimal,
-                                                            num_songs int,
                                                             song_id varchar,
                                                             title varchar,
-                                                            year int
-  )"""
+                                                            duration decimal,                                                            
+                                                            year int);"""
 
-songplay_table_create = """CREATE TABLE songplays(songplay_id serial, 
+# The SERIAL command in Postgres is not supported in Redshift. The equivalent in Redshift is ,
+# which you can read more on in the Redshift Create Table Docs
+# (https://docs.aws.amazon.com/redshift/latest/dg/r_CREATE_TABLE_NEW.html)
+songplay_table_create = """CREATE TABLE songplays(songplay_id IDENTITY(0,1), 
                                                     start_time timestamp NOT NULL, 
-                                                    user_id int NOT NULL, 
+                                                    user_id varchar NOT NULL, 
                                                     level varchar, 
                                                     song_id varchar, 
                                                     artist_id varchar, 
@@ -59,16 +63,15 @@ songplay_table_create = """CREATE TABLE songplays(songplay_id serial,
                                                     location varchar, 
                                                     user_agent varchar,
 
-                                                    PRIMARY KEY(songplay_id)
-                                                  )"""
+                                                    PRIMARY KEY(songplay_id));"""
 
-user_table_create = """CREATE TABLE users(user_id int, 
+user_table_create = """CREATE TABLE users(user_id varchar, 
                                             first_name varchar, 
                                             last_name varchar,
                                             gender varchar, 
                                             level varchar,
 
-                                            PRIMARY KEY(user_id) )"""
+                                            PRIMARY KEY(user_id));"""
 
 song_table_create = """CREATE TABLE songs(song_id varchar, 
                                             title varchar NOT NULL, 
@@ -76,7 +79,7 @@ song_table_create = """CREATE TABLE songs(song_id varchar,
                                             year int, 
                                             duration float NOT NULL,
 
-                                            PRIMARY KEY(song_id)"""
+                                            PRIMARY KEY(song_id));"""
 
 artist_table_create = """CREATE TABLE artists(artist_id varchar, 
                                                 name varchar NOT NULL, 
@@ -84,7 +87,7 @@ artist_table_create = """CREATE TABLE artists(artist_id varchar,
                                                 latitude varchar, 
                                                 longitude varchar,
 
-                                                PRIMARY KEY (artist_id)"""
+                                                PRIMARY KEY (artist_id));"""
 
 time_table_create = """CREATE TABLE times(start_time timestamp, 
                                             hour int NOT NULL,
@@ -94,11 +97,12 @@ time_table_create = """CREATE TABLE times(start_time timestamp,
                                             year int NOT NULL,
                                             weekday int NOT NULL,                                           
 
-                                            PRIMARY KEY(start_time)"""
+                                            PRIMARY KEY(start_time));"""
+
 
 # STAGING TABLES
 
-staging_events_copy =f"""COPY staging_events FROM {config["LOG_DATA"]}
+staging_events_copy = f"""COPY staging_events FROM {config["LOG_DATA"]}
                             CREDENTIALS 'aws_iam_role={config["ARN"]}'
                             FORMAT AS JSON {config["LOG_JSON_PATH"]}
                             TIMEFORMAT as 'epochmillisecs'
@@ -115,7 +119,7 @@ staging_songs_copy = f"""COPY staging_songs FROM {config["SONG_DATA"]}
 
 # FINAL TABLES
 
-songplay_table_insert = ("""INSERT INTO songplays(start_time, user_id, level, song_id, artist_id, session_id, location, user_agent)\
+songplay_table_insert = """INSERT INTO songplays(start_time, user_id, level, song_id, artist_id, session_id, location, user_agent)\
                             SELECT DISTINCT ts,
                                 e.user_id,
                                 e.level,
@@ -128,9 +132,9 @@ songplay_table_insert = ("""INSERT INTO songplays(start_time, user_id, level, so
                             JOIN staging_songs AS s ON e.artist = s.artist_name
                             WHERE 1=1
                             AND     e.page = 'NextSong'
-                            ON CONFLICT DO NOTHING;""")
+                            ON CONFLICT DO NOTHING;"""
 
-user_table_insert = ("""INSERt INTO users(user_id, first_name, last_name, gender, level)
+user_table_insert = """INSERt INTO users(user_id, first_name, last_name, gender, level)
                         SELECT DISTINCT user_id,
                             first_name,
                             last_name,
@@ -140,9 +144,9 @@ user_table_insert = ("""INSERt INTO users(user_id, first_name, last_name, gender
                         WHERE 1=1
                         AND page = 'NextSong'
                         AND user_id IS NOT NULL
-                        ON CONFLICT (user_id) DO UPDATE SET level = excluded.level;""")  # Upsert, on conflict, update field with new value
+                        ON CONFLICT (user_id) DO NOTHING;"""
 
-song_table_insert = ("""INSERT INTO songs(song_id, title, artist_id, year, duration) \
+song_table_insert = """INSERT INTO songs(song_id, title, artist_id, year, duration) \
                         SELECT DISTINCT song_id,
                             title,
                             artist_id,
@@ -151,9 +155,9 @@ song_table_insert = ("""INSERT INTO songs(song_id, title, artist_id, year, durat
                         FROM staging_songs
                         WHERE 1=1
                         AND song_id IS NOT NULL
-                        ON CONFLICT DO NOTHING;""")
+                        ON CONFLICT DO NOTHING;"""
 
-artist_table_insert = ("""INSERT INTO artists(artist_id, name, location, latitude, longitude) \
+artist_table_insert = """INSERT INTO artists(artist_id, name, location, latitude, longitude) \
                         SELECT DISTINCT artist_id,
                             artist_name,
                             artist_location,
@@ -162,25 +166,28 @@ artist_table_insert = ("""INSERT INTO artists(artist_id, name, location, latitud
                         FROM staging_songs
                         WHERE 1=1
                         AND artist_id IS NOT NULL
-                        ON CONFLICT DO NOTHING;""")
+                        ON CONFLICT DO NOTHING;"""
 
-time_table_insert = ("""INSERT INTO times(start_time, hour, day, week, month, year, weekday) \
+time_table_insert = """INSERT INTO times(start_time, hour, day, week, month, year, weekday) \
                         SELECT DISTINCT ts,
                             EXTRACT(hour FROM ts),
                             EXTRACT(day FROM ts),
                             EXTRACT(week FROM ts),
                             EXTRACT(month FROM ts),
                             EXTRACT(year FROM ts),
-                            EXTRACT(weekday FROM ts)
+                            EXTRACT(dow FROM ts)
                         FROM staging_events
                         WHERE 1=1
                         AND page = 'NextSong'
                         AND ts IS NOT NULL
-                        ON CONFLICT DO NOTHING;""")
+                        ON CONFLICT DO NOTHING;"""
 
 # QUERY LISTS
 
-create_table_queries = [staging_events_table_create, staging_songs_table_create, songplay_table_create, user_table_create, song_table_create, artist_table_create, time_table_create]
-drop_table_queries = [staging_events_table_drop, staging_songs_table_drop, songplay_table_drop, user_table_drop, song_table_drop, artist_table_drop, time_table_drop]
+create_table_queries = [staging_events_table_create, staging_songs_table_create, songplay_table_create,
+                        user_table_create, song_table_create, artist_table_create, time_table_create]
+drop_table_queries = [staging_events_table_drop, staging_songs_table_drop, songplay_table_drop, user_table_drop,
+                      song_table_drop, artist_table_drop, time_table_drop]
 copy_table_queries = [staging_events_copy, staging_songs_copy]
-insert_table_queries = [songplay_table_insert, user_table_insert, song_table_insert, artist_table_insert, time_table_insert]
+insert_table_queries = [songplay_table_insert, user_table_insert, song_table_insert, artist_table_insert,
+                        time_table_insert]
