@@ -132,9 +132,7 @@ FROM staging_events e
 JOIN staging_songs s
 ON e.song=s.title AND e.artist=s.artist_name
 
-WHERE e.page = 'NextSong'
-
-ON CONFLICT DO NOTHING;"""
+WHERE e.page = 'NextSong';"""
 
 user_table_insert = """
 INSERT INTO users (user_id, first_name, last_name, gender, level)
@@ -146,9 +144,7 @@ INSERT INTO users (user_id, first_name, last_name, gender, level)
 
     FROM staging_events e
     
-    WHERE e.page ='NextSong'
-
-ON CONFLICT DO NOTHING;"""
+    WHERE e.page ='NextSong';"""
 
 song_table_insert = """
 INSERT INTO songs (song_id, title, artist_id, year, duration)
@@ -158,9 +154,7 @@ INSERT INTO songs (song_id, title, artist_id, year, duration)
     year,
     duration
     
-    FROM staging_songs
-
-ON CONFLICT DO NOTHING;"""
+    FROM staging_songs;"""
 
 artist_table_insert = """
 INSERT INTO artists (artist_id, name, location, latitude, longitude)
@@ -170,9 +164,7 @@ INSERT INTO artists (artist_id, name, location, latitude, longitude)
     artist_latitude,
     artist_longitude
 
-    FROM staging_songs
-    
-ON CONFLICT DO NOTHING;"""
+    FROM staging_songs;"""
 
 time_table_insert = """
 INSERT INTO time (start_time, hour, day, week, month, year, weekday)
@@ -184,9 +176,7 @@ INSERT INTO time (start_time, hour, day, week, month, year, weekday)
     EXTRACT (year from start_time)    AS year,
     EXTRACT (weekday from start_time) AS weekday
 
-    FROM songplays
-    
-ON CONFLICT DO NOTHING;"""
+    FROM songplays;"""
 
 
 # QUERY LISTS
