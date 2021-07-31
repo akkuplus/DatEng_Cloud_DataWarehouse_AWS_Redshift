@@ -142,3 +142,4 @@ cython_debug/
 /.workspace-config.json
 /.idea/
 dwh.cfg
+/dwh_backup.cfg
